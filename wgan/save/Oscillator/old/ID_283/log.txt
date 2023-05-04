@@ -1,0 +1,1 @@
+Namespace(n_epochs=100, batch_size=256, lr=0.0001, b1=0.5, b2=0.9, n_cpu=8, latent_dim=480, n_critic=5, traj_len=32, n_test_trajs=1000, x_dim=3, y_dim=3, model_name='Oscillator', species_labels=['A', 'B', 'C'], training_flag=True, loading_id='', active_flag=False, Q=90)
