@@ -1,0 +1,14 @@
+setup.cfg
+setup.py
+torch_two_sample/__init__.py
+torch_two_sample/inference_cardinality.py
+torch_two_sample/inference_trees.py
+torch_two_sample/permutation_test.pyx
+torch_two_sample/statistics_diff.py
+torch_two_sample/statistics_nondiff.py
+torch_two_sample/util.py
+torch_two_sample.egg-info/PKG-INFO
+torch_two_sample.egg-info/SOURCES.txt
+torch_two_sample.egg-info/dependency_links.txt
+torch_two_sample.egg-info/requires.txt
+torch_two_sample.egg-info/top_level.txt
