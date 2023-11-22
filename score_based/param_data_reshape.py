@@ -12,7 +12,7 @@ from model_details import *
 parser = argparse.ArgumentParser(description="data_reshape")
 parser.add_argument("--model_name", type=str, default='')
 parser.add_argument("--Q", type=int, default=50)
-parser.add_argument("--active_flag", type=eval, default=True)
+parser.add_argument("--active_flag", type=eval, default=False)
 parser.add_argument("--model_id", type=int, default=1)
 
 opt = parser.parse_args()
@@ -49,7 +49,7 @@ if opt.active_flag:
 else:
     # ---- TRAIN
 
-    train_path = '../data/'+opt.model_name+'/'+opt.model_name+f'_train_set_H={opt.traj_len}_{int(2000+(100-opt.Q)*20)}x{n_obs[0]}.pickle'
+    train_path = '../data/'+opt.model_name+'/'+opt.model_name+f'_train_set_H={opt.traj_len}_2000x{n_obs[0]}.pickle'
 
 
     with open(train_path, "rb") as f:

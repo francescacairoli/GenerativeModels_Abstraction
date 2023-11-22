@@ -3,12 +3,20 @@ import torch
 from torch.optim import Adam
 from tqdm import tqdm
 import pickle
-import time
 import matplotlib.pyplot as plt
 from scipy.stats import wasserstein_distance
 import pandas as pd
 from stl_utils import *
 from model_details import *
+import sys
+import os
+
+
+sys.path.append(".")
+current_dir = os.path.dirname(os.path.realpath(__file__))
+parent_dir = os.path.dirname(current_dir)
+sys.path.append(parent_dir)
+import torch_two_sample 
 
 def train(
     model,
@@ -138,10 +146,8 @@ def evaluate(model, test_loader, nsample=100, scaler=1, mean_scaler=0, foldernam
         with tqdm(test_loader, mininterval=5.0, maxinterval=50.0) as it:
             
             for batch_no, test_batch in enumerate(it, start=1):
-                print(test_batch['timepoints'].shape)
-                st = time.time()
+                #print(test_batch['timepoints'].shape)
                 output = model.evaluate(test_batch, nsample)
-                print('Evaluation time: ', time.time()-st)
                 samples, c_target, eval_points, observed_points, observed_time = output
                 samples = samples.permute(0, 1, 3, 2)  # (B,nsample,L,K)
                 c_target = c_target.permute(0, 2, 1)  # (B,L,K)
@@ -226,7 +232,6 @@ def evaluate(model, test_loader, nsample=100, scaler=1, mean_scaler=0, foldernam
                 print("MAE:", mae_total / evalpoints_total)
                 print("CRPS:", CRPS)
 
-
 def statistical_test(opt, model, dataloader, nsample=1, scaler=1, mean_scaler=0, foldername=""):
     plt.rcParams.update({'font.size': 22})
 
@@ -242,37 +247,54 @@ def statistical_test(opt, model, dataloader, nsample=1, scaler=1, mean_scaler=0,
     K = samples[0].shape[-1] #feature
     L = samples[0].shape[-2] #time length
     
-    samples_grid = [5,10, 25, 50, 100, 200]
+    samples_grid = [5,10, 25, 50, 100, 200, 300]
     G = len(samples_grid)
-    pvals_mean = np.empty((K,G))
-    pvals_std = np.empty((K,G))
-    for jj in range(G):
 
-        pvals = torch.empty((N, K, L))
+    filename = foldername+f'CSDI_{opt.model_name}_pvalues.pickle'
         
-        for i in range(N):
-            Ti = target[i]#.cpu().numpy()
-            Si = samples[i]#.cpu().numpy()
-            for m in range(K):
-                for t in range(L):    
-                    A = Ti[:samples_grid[jj],t,m]
-                    B = Si[:samples_grid[jj],0,t,m]
-                    st = torch_two_sample.statistics_diff.EnergyStatistic(samples_grid[jj], samples_grid[jj])
-                    stat, dist = st(A,B, ret_matrix = True)
-                    pvals[i,m,t] = st.pval(dist)
+    if False:
+        pvals_mean = np.empty((K,G))
+        pvals_std = np.empty((K,G))
+        for jj in range(G):
 
-        pvals_mean[:,jj] = np.mean(np.mean(pvals.cpu().numpy(), axis=0),axis=1)
-        pvals_srd[:,jj] = np.std(np.std(pvals.cpu().numpy(), axis=0),axis=1)
+            pvals = torch.empty((N, K, L))
+            
+            for i in range(N):
+                Ti = target[i]#.cpu().numpy()
+                Si = samples[i]#.cpu().numpy()
+                for m in range(K):
+                    for t in range(L):    
+                        A = Ti[:samples_grid[jj],t,m].unsqueeze(1)
+                        B = Si[:samples_grid[jj],0,t,m].unsqueeze(1)
+                        st = torch_two_sample.statistics_diff.EnergyStatistic(samples_grid[jj], samples_grid[jj])
+                        stat, dist = st(A,B, ret_matrix = True)
+                        pvals[i,m,t] = st.pval(dist)
+
+            pvals_mean[:,jj] = np.mean(np.mean(pvals.cpu().numpy(), axis=0),axis=1)
+            pvals_std[:,jj] = np.std(np.std(pvals.cpu().numpy(), axis=0),axis=1)
     
+        pvalues_dict = {"samples_grid":samples_grid, "pvals_mean":pvals_mean, "pvals_std":pvals_std}
+        
+        file = open(filename, 'wb')
+        pickle.dump(pvalues_dict, file)
+        file.close()
+    else:
+        with open(filename, 'rb') as f:
+            pvalues_dict = pickle.load(f)
+        pvals_mean, pvals_std = pvalues_dict["pvals_mean"], pvalues_dict["pvals_std"]
+
     colors = ['b','r','g']
     fig = plt.figure()
     for spec in range(K):
-        plt.plot(np.arange(G), pvals_mean[spec], color =colors[spec],label=opt.species_labels[spec])
-        plt.fill_between(np.arange(G), pvals_mean[spec]-1.96*pvals_std[spec],
+        plt.plot(np.array(samples_grid), pvals_mean[spec], color =colors[spec],label=opt.species_labels[spec])
+        plt.fill_between(np.array(samples_grid), pvals_mean[spec]-1.96*pvals_std[spec],
                                     pvals_mean[spec]+1.96*pvals_std[spec], color =colors[spec],alpha =0.1)
-    plt.plot(np.arange(G), np.ones(G)*0.05,'k-') 
+    plt.plot(np.array(samples_grid), np.ones(G)*0.05,'k--') 
     plt.legend()
-    plt.title('csdi')
+    plt.title(f'csdi: {opt.model_name}')
+    #plt.xticks(samples_grid)
+    plt.grid()
+
     plt.xlabel("nb of samples")
     plt.ylabel("p-values")
     plt.tight_layout()
@@ -333,6 +355,7 @@ def compute_rescaled_wass_distance(opt, model, dataloader, nsample=1, scaler=1, 
     with open(path, 'rb') as f:
         samples, target = pickle.load(f)
 
+    ds = dataloader.dataset
 
     N = len(samples) #nb points
     M = samples[0].shape[0] #nb trajs per point
@@ -342,9 +365,9 @@ def compute_rescaled_wass_distance(opt, model, dataloader, nsample=1, scaler=1, 
     wass_dist = np.empty((N, K, L))
     
     for i in range(N):
-
-        Ti = np.round(target[i].cpu().numpy()*dataloader.dataset.stds+dataloader.dataset.means)
-        Si = np.round(samples[i].cpu().numpy()*dataloader.dataset.stds+dataloader.dataset.means)        
+        
+        Ti = np.round(ds.min+(target[i].cpu().numpy()+1)*(ds.max-ds.min)/2)
+        Si = np.round(ds.min+(samples[i].cpu().numpy()+1)*(ds.max-ds.min)/2)        
             
         for m in range(K):
             for t in range(L):    
@@ -373,6 +396,8 @@ def plot_histograms(opt, foldername, dataloader, nsample):
     plt.rcParams.update({'font.size': 25})
 
 
+    ds = dataloader.dataset
+
     print('Plotting histograms...')
     path = foldername+'generated_test_reshaped_outputs_nsample' + str(nsample) + '.pk' 
     with open(path, 'rb') as f:
@@ -394,8 +419,8 @@ def plot_histograms(opt, foldername, dataloader, nsample):
         
         for kkk in range(N):
             fig, ax = plt.subplots(K,1, figsize = (12,K*4))
-            G = np.round(samples[kkk][:,0].cpu().numpy()*dataloader.dataset.stds+dataloader.dataset.means)     
-            R = np.round(target[kkk].cpu().numpy()*dataloader.dataset.stds+dataloader.dataset.means)        
+            G = np.round(ds.min+(samples[kkk][:,0].cpu().numpy()+1)*(ds.max-ds.min)/2)     
+            R = np.round(ds.min+(target[kkk].cpu().numpy()+1)*(ds.max-ds.min)/2)        
             
             for d in range(K):
 
@@ -406,7 +431,7 @@ def plot_histograms(opt, foldername, dataloader, nsample):
                 ax.set_ylabel(opt.species_labels[d])
 
             figname = foldername+"CSDI_{}_rescaled_hist_comparison_{}th_timestep_{}.png".format(opt.model_name,time_instant, kkk)
-            fig.suptitle('csdi',fontsize=30)
+            fig.suptitle('csdi',fontsize=40)
             plt.tight_layout()
             fig.savefig(figname)
             plt.close()
@@ -415,8 +440,8 @@ def plot_histograms(opt, foldername, dataloader, nsample):
         
         for kkk in range(N):
             fig, ax = plt.subplots(K,1, figsize = (12,K*4))
-            G = np.round(samples[kkk][:,0].cpu().numpy()*dataloader.dataset.stds+dataloader.dataset.means)     
-            R = np.round(target[kkk].cpu().numpy()*dataloader.dataset.stds+dataloader.dataset.means)        
+            G = np.round(ds.min+(samples[kkk][:,0].cpu().numpy()+1)*(ds.max-ds.min)/2)     
+            R = np.round(ds.min+(target[kkk].cpu().numpy()+1)*(ds.max-ds.min)/2)        
             for d in range(K):
 
                 XXX = np.vstack((R[:, time_instant, d], G[:, time_instant, d])).T
@@ -442,6 +467,8 @@ def plot_rescaled_trajectories(opt, foldername, dataloader, nsample, Mred = 10):
     with open(path, 'rb') as f:
         samples, target = pickle.load(f)
 
+    ds = dataloader.dataset
+
     colors = ['blue', 'orange']
     leg = ['real', 'gen']
 
@@ -452,8 +479,8 @@ def plot_rescaled_trajectories(opt, foldername, dataloader, nsample, Mred = 10):
     tspan = range(int(-opt.testmissingratio),L)
     for dataind in range(N):
 
-        G = np.round(samples[dataind][:,0].cpu().numpy()*dataloader.dataset.stds+dataloader.dataset.means)     
-        R = np.round(target[dataind].cpu().numpy()*dataloader.dataset.stds+dataloader.dataset.means)        
+        G = np.round(ds.min+(samples[dataind][:,0].cpu().numpy()+1)*(ds.max-ds.min)/2)     
+        R = np.round(ds.min+(target[dataind].cpu().numpy()+1)*(ds.max-ds.min)/2)        
         fig, axes = plt.subplots(K,figsize=(16, K*4))
         
         G[:,:int(-opt.testmissingratio)] = R[:,:int(-opt.testmissingratio)].copy()
@@ -469,7 +496,7 @@ def plot_rescaled_trajectories(opt, foldername, dataloader, nsample, Mred = 10):
                         axes.plot(tspan, G[jj,int(-opt.testmissingratio):,kk], color = colors[1],linestyle='solid')
                         axes.plot(tspan, R[jj,int(-opt.testmissingratio):,kk], color = colors[0],linestyle='solid')
                         
-                axes.set_ylabel('value')
+                axes.set_ylabel(opt.species_labels[kk])
                 axes.set_xlabel('time')
 
             else:
@@ -492,115 +519,10 @@ def plot_rescaled_trajectories(opt, foldername, dataloader, nsample, Mred = 10):
         fig.savefig(foldername+f'CSDI_{opt.model_name}_stoch_rescaled_trajectories_point_{dataind}.png')
         plt.close()
 
-def plot_trajectories(foldername, nsample):
-    print('Plotting trajectories...')
-    path = foldername+'generated_test_outputs_nsample' + str(nsample) + '.pk' 
-    with open(path, 'rb') as f:
-        samples,all_target,all_evalpoint,all_observed,all_observed_time,scaler,mean_scaler = pickle.load(f)
-
-    all_target_np = all_target.cpu().numpy()
-    all_evalpoint_np = all_evalpoint.cpu().numpy()
-    all_observed_np = all_observed.cpu().numpy()
-    all_given_np = all_observed_np - all_evalpoint_np
-
-    K = samples.shape[-1] #feature
-    L = samples.shape[-2] #time length
-
-    n_test_points = 25
-    n_trajs_per_point = 1000
-
-    samples_np = samples.cpu().numpy()
-    samples_res = (samples[:,0]).reshape((n_test_points,n_trajs_per_point,L,K))
-
-    all_target_res = (all_target_np).reshape((n_test_points,n_trajs_per_point,L,K))
-    all_given_res = (all_given_np).reshape((n_test_points,n_trajs_per_point,L,K))
-    all_evalpoint_res = (all_evalpoint_np).reshape((n_test_points,n_trajs_per_point,L,K))
-
-    qlist =[0.05,0.25,0.5,0.75,0.95]
-    quantiles_imp= []
-    for q in qlist:
-        quant = get_quantile(samples_res, q, dim=1)
-        quantiles_imp.append(quant*(1-all_given_res[:,0]) + all_target_res[:,0] * all_given_res[:,0])
-
-    samples_res = samples_res.cpu().numpy()
-
-    Mred = 10
-
-    for dataind in range(n_test_points):     #change to visualize a different time-series sample
-
-        plt.rcParams["font.size"] = 16
-        fig, axes = plt.subplots(K,figsize=(24.0, 12.0))
-
-        for k in range(K):
-            if K == 1:
-                axes.plot(range(0,L), quantiles_imp[2][dataind,:,k], color = 'g',linestyle='solid',label='CSDI')
-                axes.fill_between(range(0,L), quantiles_imp[0][dataind,:,k],quantiles_imp[4][dataind,:,k],
-                                color='g', alpha=0.3)
-                for j in range(Mred):
-                    df = pd.DataFrame({"x":np.arange(0,L), "val":all_target_res[dataind,j,:,k], "y":all_evalpoint_res[dataind, j,:,k]})
-                    df = df[df.y != 0]
-                    df2 = pd.DataFrame({"x":np.arange(0,L), "val":all_target_res[dataind,j,:,k], "y":all_given_res[dataind, j,:,k]})
-                    df2 = df2[df2.y != 0]
-                    axes.plot(df.x,df.val, color = 'b',marker = 'o', linestyle='None')
-                    axes.plot(df2.x,df2.val, color = 'r',marker = 'x', linestyle='None')
-                plt.setp(axes, ylabel='value')
-                plt.setp(axes, xlabel='time')
-            else:
-                axes[k].plot(range(0,L), quantiles_imp[2][dataind,:,k], color = 'g',linestyle='solid',label='CSDI')
-                axes[k].fill_between(range(0,L), quantiles_imp[0][dataind,:,k],quantiles_imp[4][dataind,:,k],
-                                color='g', alpha=0.3)
-                for j in range(Mred):
-                    df = pd.DataFrame({"x":np.arange(0,L), "val":all_target_res[dataind, j,:,k], "y":all_evalpoint_res[dataind, j,:,k]})
-                    df = df[df.y != 0]
-                    df2 = pd.DataFrame({"x":np.arange(0,L), "val":all_target_res[dataind, j,:,k], "y":all_given_res[dataind, j,:,k]})
-                    df2 = df2[df2.y != 0]
-                    axes[k].plot(df.x,df.val, color = 'b',marker = 'o', linestyle='None')
-                    axes[k].plot(df2.x,df2.val, color = 'r',marker = 'x', linestyle='None')
-                plt.setp(axes[k], ylabel='value')
-                if k == 1:
-                    plt.setp(axes[k], xlabel='time')
-        plt.legend()
-        fig.suptitle('csdi')
-        fig.savefig(foldername+f'stoch_dataset_point={dataind}.png')
-        plt.close()
-        
-        samples_scaled_res = samples_res*(1-all_given_res[:]) + all_target_res[:] * all_given_res[:]
-        fig2, axes2 = plt.subplots(K,figsize=(24.0, 12.0))
-
-        for kk in range(K):
-            if K == 1:
-                for jj in range(Mred):
-                    if jj == 0:
-                        axes2.plot(range(0,L), samples_scaled_res[dataind,jj,:,kk], color = 'b',linestyle='solid',label='CSDI')
-                        axes2.plot(range(0,L), all_target_res[dataind,jj,:,kk], color = 'orange',linestyle='solid',label='SSA')
-                    else:
-                        axes2.plot(range(0,L), samples_scaled_res[dataind,jj,:,kk], color = 'b',linestyle='solid')
-                        axes2.plot(range(0,L), all_target_res[dataind,jj,:,kk], color = 'orange',linestyle='solid')
-                        
-                plt.setp(axes2, ylabel='value')
-                if kk == 1:
-                    plt.setp(axes2[kk], xlabel='time')
-
-            else:
-                for jj in range(Mred):
-                    if jj == 0:
-                        axes2[kk].plot(range(0,L), samples_scaled_res[dataind,jj,:,kk], color = 'b',linestyle='solid',label='CSDI')
-                        axes2[kk].plot(range(0,L), all_target_res[dataind,jj,:,kk], color = 'orange',linestyle='solid',label='SSA')
-                    else:
-                        axes2[kk].plot(range(0,L), samples_scaled_res[dataind,jj,:,kk], color = 'b',linestyle='solid')
-                        axes2[kk].plot(range(0,L), all_target_res[dataind,jj,:,kk], color = 'orange',linestyle='solid')
-                        
-                plt.setp(axes2[kk], ylabel='value')
-                if kk == 1:
-                    plt.setp(axes2[kk], xlabel='time')
-        plt.legend()
-        fig2.savefig(foldername+f'stoch_trajs_point={dataind}.png')
-        plt.close()
-
-
 def avg_stl_satisfaction(opt, foldername, dataloader, model_name, ds_id = 'test', nsample=1, rob_flag = False):
     plt.rcParams.update({'font.size': 22})
 
+    ds = dataloader.dataset
     print('Computing STL satisfaction over the '+ds_id+ ' set...')
 
     colors = ['blue', 'orange']
@@ -620,8 +542,8 @@ def avg_stl_satisfaction(opt, foldername, dataloader, model_name, ds_id = 'test'
     for i in range(N):
         #print("\tinit_state n = ", i)
         
-        rescaled_samples = np.round(samples[i].cpu().numpy()*dataloader.dataset.stds+dataloader.dataset.means)     
-        rescaled_target = np.round(target[i].cpu().numpy()*dataloader.dataset.stds+dataloader.dataset.means)        
+        rescaled_samples = np.round(ds.min+(samples[i].cpu().numpy()+1)*(ds.max-ds.min)/2)     
+        rescaled_target = np.round(ds.min+(target[i].cpu().numpy()+1)*(ds.max-ds.min)/2)        
         rescaled_samples[:,0,:int(-opt.testmissingratio)] = rescaled_target[:,:int(-opt.testmissingratio)].copy()
         
         ssa_trajs_i = torch.tensor(rescaled_target.transpose((0,2,1)))[:,:,int(-opt.testmissingratio-1):]
@@ -640,12 +562,9 @@ def avg_stl_satisfaction(opt, foldername, dataloader, model_name, ds_id = 'test'
             ssa_sat_i = eval_toy_property(ssa_trajs_i,rob_flag).float()
             gen_sat_i = eval_toy_property(gen_trajs_i,rob_flag).float()
         elif model_name == 'Oscillator':
-            #sum_value = torch.sum(ssa_trajs_i,dim=1)
-            #ssa_sat_i = eval_oscillator_property(ssa_trajs_i,sum_value,rob_flag).float()
-            #gen_sat_i = eval_oscillator_property(gen_trajs_i,sum_value,rob_flag).float()
-            ssa_sat_i = eval_oscillator_soft_property(ssa_trajs_i,rob_flag).float()
-            gen_sat_i = eval_oscillator_soft_property(gen_trajs_i,rob_flag).float()
-
+            sum_value = torch.sum(ssa_trajs_i,dim=1)
+            ssa_sat_i = eval_oscillator_property(ssa_trajs_i,sum_value,rob_flag).float()
+            gen_sat_i = eval_oscillator_property(gen_trajs_i,sum_value,rob_flag).float()
         elif model_name == 'MAPK':
             ssa_sat_i = eval_mapk_property(ssa_trajs_i,rob_flag).float()
             gen_sat_i = eval_mapk_property(gen_trajs_i,rob_flag).float()
@@ -686,9 +605,9 @@ def avg_stl_satisfaction(opt, foldername, dataloader, model_name, ds_id = 'test'
     
     dist_dict = {'init': init_states, 'sat_diff':sat_diff}
     if rob_flag:
-        file = open(foldername+f'quantitative_satisf_distances_'+ds_id+'_set_active={opt.active_flag}.pickle', 'wb')
+        file = open(foldername+f'quantitative_satisf_distances_'+ds_id+f'_set_active={opt.active_flag}.pickle', 'wb')
     else:
-        file = open(foldername+f'boolean_satisf_distances_'+ds_id+'_set_active={opt.active_flag}.pickle', 'wb')
+        file = open(foldername+f'boolean_satisf_distances_'+ds_id+f'_set_active={opt.active_flag}.pickle', 'wb')
     pickle.dump(dist_dict, file)
     file.close()
 

@@ -117,20 +117,22 @@ if not args.load:
     evaluate(model, test_loader, nsample=args.nsample, scaler=1, foldername=foldername, ds_id = 'test')
 
 #plot_trajectories(foldername=foldername, nsample=args.nsample)
-plot_rescaled_trajectories(opt=args, foldername=foldername, dataloader=test_loader, nsample=args.nsample)
+plot_rescaled_trajectories(opt=args, foldername=foldername, dataloader=train_loader, nsample=args.nsample)
 
-plot_histograms(opt=args, foldername=foldername, dataloader=test_loader, nsample=args.nsample)
+plot_histograms(opt=args, foldername=foldername, dataloader=train_loader, nsample=args.nsample)
 
 # Compute Wasserstein distance over test set
-wd = compute_wass_distance(opt=args,model=model, dataloader=test_loader, nsample=args.nsample, scaler=1, foldername=foldername)
+wd = compute_wass_distance(opt=args,model=model, dataloader=train_loader, nsample=args.nsample, scaler=1, foldername=foldername)
+res_wd = compute_rescaled_wass_distance(opt=args,model=model, dataloader=train_loader, nsample=args.nsample, scaler=1, foldername=foldername)
+
 
 # Evaluate over the validation set
 if not args.load:
     evaluate(model, valid_loader, nsample=args.nsample, scaler=1, foldername=foldername, ds_id = 'valid')
 
 # Evaluate average STL satisfaction
-_ = avg_stl_satisfaction(opt=args, foldername = foldername, model_name = args.model_name, dataloader=test_loader, ds_id = 'test', nsample=1, rob_flag = args.rob_flag)
-valid_dist_dict = avg_stl_satisfaction(opt=args, foldername = foldername, model_name = args.model_name, dataloader=valid_loader, ds_id = 'valid', nsample=1, rob_flag = args.rob_flag)
+_ = avg_stl_satisfaction(opt=args, foldername = foldername, model_name = args.model_name, dataloader=train_loader, ds_id = 'test', nsample=1, rob_flag = args.rob_flag)
+valid_dist_dict = avg_stl_satisfaction(opt=args, foldername = foldername, model_name = args.model_name, dataloader=train_loader, ds_id = 'valid', nsample=1, rob_flag = args.rob_flag)
 
 active_target = active_loader.dataset.observed_values.reshape((2000,args.ntrajs,args.eval_length,args.target_dim))
 pool_init_states = active_target[:,0,0]

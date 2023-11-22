@@ -20,7 +20,7 @@ class Dataset(Dataset):
 		self.missing_ratio = missing_ratio
 		use_index_list = None
 		if scaling_flag:
-			newpath = (f"../data/{model_name}/{model_name}_scaled_"+idx+f"_missing{missing_ratio}_gtmask.pickle")
+			newpath = (f"../data/{model_name}/{model_name}_norm_"+idx+f"_missing{missing_ratio}_gtmask.pickle")
 		else:
 			newpath = (f"../data/{model_name}/{model_name}_"+idx+f"_missing{missing_ratio}_gtmask.pickle")
 		if os.path.isfile(newpath) == False:  # if datasetfile is none, create
@@ -41,15 +41,27 @@ class Dataset(Dataset):
 			else:
 				if idx == 'test':
 					observed_values, mask = self.build_mask(f'../data/{model_name}/{model_name}_test_trajs_H={eval_length}_25x1000.pickle', missing_ratio, use_index_list)
+
 				elif idx == 'valid':
-					observed_values, mask = self.build_mask(f'../data/{model_name}/{model_name}_valid_trajs_H={eval_length}_200x50.pickle', missing_ratio, use_index_list)
+					if model_name =="LV" or model_name =="LV64":
+						observed_values, mask = self.build_mask(f'../data/{model_name}/{model_name}_valid_trajs_H={eval_length}_100x50.pickle', missing_ratio, use_index_list)
+					else:
+						observed_values, mask = self.build_mask(f'../data/{model_name}/{model_name}_valid_trajs_H={eval_length}_200x50.pickle', missing_ratio, use_index_list)
+
 				elif idx == 'active':
-					observed_values, mask = self.build_mask(f'../data/{model_name}/{model_name}_active_trajs_H={eval_length}_2000x10.pickle', missing_ratio, use_index_list)
+					if model_name =="LV" or model_name =="LV64":
+						observed_values, mask = self.build_mask(f'../data/{model_name}/{model_name}_active_trajs_H={eval_length}_200x10.pickle', missing_ratio, use_index_list)
+					else:
+						observed_values, mask = self.build_mask(f'../data/{model_name}/{model_name}_active_trajs_H={eval_length}_2000x10.pickle', missing_ratio, use_index_list)
+
 				else:
 					if retrain_id == '':
-						observed_values, mask = self.build_mask(f'../data/{model_name}/{model_name}_train_trajs_H={eval_length}_2000x10.pickle', missing_ratio, use_index_list)
+						if model_name =="LV" or model_name =="LV64":
+							observed_values, mask = self.build_mask(f'../data/{model_name}/{model_name}_train_trajs_H={eval_length}_500x10.pickle', missing_ratio, use_index_list)
+						else:
+							observed_values, mask = self.build_mask(f'../data/{model_name}/{model_name}_train_trajs_H={eval_length}_2000x10.pickle', missing_ratio, use_index_list)
 					else:
-						observed_values, mask = self.build_mask(f'../data/{model_name}/{model_name}_csdi{retrain_id}_{50}perc_retrain_set_H=_3000x10.pickle', missing_ratio, use_index_list)
+						observed_values, mask = self.build_mask(f'../data/{model_name}/{model_name}_csdi{retrain_id}_{50}perc_retrain_set_H=_1000x10.pickle', missing_ratio, use_index_list)
 
 			self.observed_values = observed_values
 			self.observed_masks = np.ones(observed_values.shape)#mask
@@ -61,26 +73,22 @@ class Dataset(Dataset):
 				tmp_values = self.observed_values.reshape(-1, self.target_dim)
 				tmp_masks = self.observed_masks.reshape(-1, self.target_dim)
 				if idx == 'train':
-					self.means = np.zeros(self.target_dim)
-					self.stds = np.zeros(self.target_dim)
-					for k in range(self.target_dim):
-						c_data = tmp_values[:, k][tmp_masks[:, k] == 1]
-						self.means[k] = c_data.mean()
-						self.stds[k] = c_data.std()
+					self.min = np.min(np.min(tmp_values, axis = 0),axis=0)
+					self.max = np.max(np.max(tmp_values, axis = 0),axis=0)
 				else:
-					self.means = train_ds.means
-					self.stds = train_ds.stds
+					self.min = train_ds.min
+					self.max = train_ds.max
 				self.observed_values = (
-					(self.observed_values - self.means) / self.stds * self.observed_masks
+					-1+2*(self.observed_values - self.min) / (self.max-self.min) * self.observed_masks
 				)
 
 			with open(newpath, "wb") as f:
 				pickle.dump(
-					[self.observed_values, self.observed_masks, self.gt_masks, self.means, self.stds], f
+					[self.observed_values, self.observed_masks, self.gt_masks, self.min, self.max], f
 				)
 		else:  # load datasetfile
 			with open(newpath, "rb") as f:
-				self.observed_values, self.observed_masks, self.gt_masks, self.means, self.stds = pickle.load(
+				self.observed_values, self.observed_masks, self.gt_masks, self.min, self.max = pickle.load(
 					f
 				)
 
@@ -123,13 +131,17 @@ class Dataset(Dataset):
 		else:
 			mask[:,:int(n_steps*(1-self.missing_ratio))] = 1
 
+		obs_tp = torch.empty((full_trajs.shape[0],full_trajs.shape[1]))
+		for b in range(full_trajs.shape[0]):
+			obs_tp[b] = torch.arange(self.eval_length)
+			
 		#print("------------------", full_trajs.shape, mask.shape)
 
 		s = {
 			"observed_data": full_trajs,
 			"observed_mask": torch.ones_like(full_trajs),
 			"gt_mask": mask,
-			"timepoints": torch.arange(self.eval_length).unsqueeze(dim=0),
+			"timepoints": obs_tp
 		}
 		return s
 

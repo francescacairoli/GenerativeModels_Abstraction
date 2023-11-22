@@ -1,7 +1,9 @@
 import numpy as np
 import torch
 import torch.nn as nn
-from diff_models import diff_CSDI
+import sys
+sys.path.append(".")
+from score_based.diff_models import diff_CSDI
 
 
 class CSDI_base(nn.Module):
@@ -27,7 +29,7 @@ class CSDI_base(nn.Module):
 
         input_dim = 1 if self.is_unconditional == True else 2
         self.diffmodel = diff_CSDI(config_diff, input_dim)
-
+        
         # parameters for diffusion models
         self.num_steps = config_diff["num_steps"]
         if config_diff["schedule"] == "quad":
@@ -88,8 +90,9 @@ class CSDI_base(nn.Module):
             torch.arange(self.target_dim).to(self.device)
         )  # (K,emb)
         feature_embed = feature_embed.unsqueeze(0).unsqueeze(0).expand(B, L, -1, -1)
-
+        
         side_info = torch.cat([time_embed, feature_embed], dim=-1)  # (B,L,K,*)
+        
         side_info = side_info.permute(0, 3, 2, 1)  # (B,*,K,L)
 
         if self.is_unconditional == False:
@@ -108,6 +111,7 @@ class CSDI_base(nn.Module):
             )
             loss_sum += loss.detach()
         return loss_sum / self.num_steps
+
 
     def calc_loss(
         self, observed_data, cond_mask, observed_mask, side_info, is_train, set_t=-1
