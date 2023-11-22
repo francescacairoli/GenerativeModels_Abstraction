@@ -41,17 +41,30 @@ def eval_toy_property(signal, rob_flag = True):
 		satisf = phi.boolean(sum_signal)
 	return satisf
 
-def eval_oscillator_property(signal, rob_flag = True):
+def eval_oscillator_property(signal,ref, rob_flag = True):
 	n_timesteps = signal.shape[2]
 	sum_signal = torch.sum(signal,dim=1).unsqueeze(dim=1)
-	atom = stl.Equal(var_index=0, rhs=sum_signal[0]) 
+	atom = stl.Equal(var_index=0, rhs=ref) 
 	phi = stl.Globally(atom, unbound=True)
 	if rob_flag:
 		satisf = phi.quantitative(sum_signal)
 	else:
 		satisf = phi.boolean(sum_signal)
 	return satisf
+	
+def eval_oscillator_soft_property(signal, ref, rob_flag = True): 
+	# eventually A < B
+	n_timesteps = signal.shape[2]
+	AmB_signal = signal[:,:1]-signal[:,1:2]
+	atom = stl.Atom(var_index=0, threshold=0, lte=True) # lte = True is <=
 
+	phi = stl.Eventually(atom, unbound=True)
+	if rob_flag:
+		satisf = phi.quantitative(AmB_signal)
+	else:
+		satisf = phi.boolean(AmB_signal)
+	return satisf
+	
 def eval_toy_soft_property(signal, rob_flag = True):
 	n_timesteps = signal.shape[2]
 	sum_signal = torch.sum(signal,dim=1).unsqueeze(dim=1)
@@ -94,10 +107,10 @@ def eval_mapk_property(signal, rob_flag):
 	return satisf
 
 
-def eval_ecoli_property(signal, rob_flag = True):
+def eval_ecoli_property(signal, ref, rob_flag = True):
 	n_timesteps = signal.shape[2]
 	sum_signal = torch.sum(signal,dim=1).unsqueeze(dim=1)
-	atom = stl.Equal(var_index=0, rhs=sum_signal[0]) 
+	atom = stl.Equal(var_index=0, rhs=ref) 
 	phi = stl.Globally(atom, unbound=True)
 	if rob_flag:
 		satisf = phi.quantitative(sum_signal)

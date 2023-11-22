@@ -1,0 +1,6 @@
+Simulation time for wgan =  9371.290650367737
+Simulation time for wgan =  1551.374655008316 (large arch)
+
+Simulation time for csdi =  3126.588474750519
+Simulation time for ssa =  30161.364009141922
+

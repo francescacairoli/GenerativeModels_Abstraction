@@ -27,6 +27,14 @@ def get_model_details(opt):
 	    opt.x_dim = 3
 	    opt.p_dim = 2
 	    opt.traj_len = 32
+	elif opt.model_name == "LV":
+	    opt.species_labels = ["A", "B"]
+	    opt.x_dim = 2
+	    opt.traj_len = 63
+	elif opt.model_name == "LV64":
+	    opt.species_labels = ["A", "B"]
+	    opt.x_dim = 2
+	    opt.traj_len = 64
 	else:
 		opt.species_labels = []
 

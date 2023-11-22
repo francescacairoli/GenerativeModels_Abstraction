@@ -1,58 +1,75 @@
 ## CSDI
 
-python exec_csdi.py --model_name 'eSIRS' --target_dim 2 --eval_length 33 --nsample 1 --nepochs 100 --batch_size 256 --lr 0.0005 --scaling_flag True --load True --modelfolder 1 --q 0.5
+python exec_csdi_norm.py --model_name 'eSIRS' --target_dim 2 --eval_length 33 --nsample 1 --nepochs 100 --batch_size 256 --lr 0.0005 --scaling_flag True  --q 0.5 --rob_flag True  --load True --modelfolder 100
 
-python exec_csdi.py --model_name 'SIR' --target_dim 3 --eval_length 17 --nsample 1 --nepochs 100 --batch_size 256 --lr 0.0005 --scaling_flag True --load True --modelfolder 1 --q 0.5
+python exec_csdi_norm.py --model_name 'SIR' --target_dim 3 --eval_length 17 --nsample 1 --nepochs 100 --batch_size 256 --lr 0.0005 --scaling_flag True  --q 0.5 --rob_flag True --load True --modelfolder 100
  
-python exec_csdi.py --model_name 'TS' --target_dim 2 --eval_length 33 --nsample 1 --nepochs 100 --batch_size 256 --lr 0.0005 --scaling_flag True --load True --modelfolder 1 --q 0.5
+python exec_csdi_norm.py --model_name 'TS' --target_dim 2 --eval_length 33 --nsample 1 --nepochs 100 --batch_size 256 --lr 0.0005 --scaling_flag True --load True --modelfolder 100 --q 0.5 --rob_flag True
 
-python exec_csdi.py --model_name 'Toy' --target_dim 3 --eval_length 33 --nsample 1 --nepochs 100 --batch_size 256 --lr 0.0005 --scaling_flag True --load True --modelfolder 1 --q 0.5
+python exec_csdi_norm.py --model_name 'Toy' --target_dim 3 --eval_length 33 --nsample 1 --nepochs 100 --batch_size 256 --lr 0.0005 --scaling_flag True --load True --modelfolder 100 --q 0.5 --rob_flag True
 
-python exec_csdi.py --model_name 'Oscillator' --target_dim 3 --eval_length 33 --nsample 1 --nepochs 200 --batch_size 256 --lr 0.0005 --scaling_flag True --load True --modelfolder 1 --rob_flag True --q 0.5
+python exec_csdi_norm.py --model_name 'Oscillator' --target_dim 3 --eval_length 33 --nsample 1 --nepochs 200 --batch_size 256 --lr 0.0005 --scaling_flag True --load True --modelfolder 100 --rob_flag True --q 0.5
 
-python exec_csdi.py --model_name 'MAPK' --target_dim 1 --eval_length 34 --nsample 1 --nepochs 200 --batch_size 256 --lr 0.0005 --scaling_flag True  --ntrajs 50 --testmissingratio -2 --load True --modelfolder 1 --rob_flag True --q 0.5
+python exec_csdi_norm.py --model_name 'MAPK' --target_dim 1 --eval_length 34 --nsample 1 --nepochs 400 --batch_size 256 --lr 0.0005 --scaling_flag True  --ntrajs 50 --testmissingratio -2  --rob_flag True --q 0.5 --load True --modelfolder 100
 
-python exec_csdi.py --model_name 'EColi' --target_dim 3 --eval_length 35 --nsample 1 --nepochs 100 --batch_size 256 --lr 0.0005 --scaling_flag True --testmissingratio -3 --load True --modelfolder 1 --rob_flag True --q 0.5
+python exec_csdi_norm.py --model_name 'EColi' --target_dim 3 --eval_length 35 --nsample 1 --nepochs 100 --batch_size 256 --lr 0.0005 --scaling_flag True --testmissingratio -3 --rob_flag True --q 0.5  --load True --modelfolder 100
 
+
+python exec_csdi_norm.py --model_name 'MAPK' --target_dim 1 --eval_length 34 --nsample 1 --nepochs 400 --batch_size 256 --lr 0.0005 --scaling_flag True --ntrajs 50 --testmissingratio -2 --rob_flag True --q 0.5 --confid "extra.yaml" --load True --modelfolder 289
+
+## tmp
+python exec_csdi.py --model_name 'Oscillator' --target_dim 3 --eval_length 33 --nsample 1 --nepochs 1 --batch_size 256 --lr 0.0005 --scaling_flag True
+python exec_csdi.py --model_name 'TS' --target_dim 2 --eval_length 33 --nsample 1 --nepochs 1 --batch_size 256 --lr 0.0005 --scaling_flag True
+python exec_csdi.py --model_name 'SIR' --target_dim 3 --eval_length 17 --nsample 1 --nepochs 1 --batch_size 256 --lr 0.0005 --scaling_flag True  
 
 ## CSDI RETRAIN
 
-python exec_csdi.py --model_name 'eSIRS' --target_dim 2 --eval_length 33 --nsample 1 --nepochs 100 --batch_size 256 --lr 0.0005 --scaling_flag True --load False --modelfolder 1 --rob_flag True --q 0.5 --active_flag True
+python exec_csdi_norm.py --model_name 'eSIRS' --target_dim 2 --eval_length 33 --nsample 1 --nepochs 50 --batch_size 256 --lr 0.00001 --scaling_flag True --load False --modelfolder 100 --rob_flag True --q 0.5 --active_flag True
 
-python exec_csdi.py --model_name 'SIR' --target_dim 3 --eval_length 17 --nsample 1 --nepochs 100 --batch_size 256 --lr 0.0005 --scaling_flag True --load False --modelfolder 1 --rob_flag True --q 0.5 --active_flag True
+python exec_csdi_norm.py --model_name 'SIR' --target_dim 3 --eval_length 17 --nsample 1 --nepochs 100 --batch_size 256 --lr 0.00001 --scaling_flag True --load False --modelfolder 100 --rob_flag True --q 0.5 --active_flag True
  
-python exec_csdi.py --model_name 'TS' --target_dim 2 --eval_length 33 --nsample 1 --nepochs 100 --batch_size 256 --lr 0.0005 --scaling_flag True --load False --modelfolder 1 --rob_flag True --q 0.5 --active_flag True
+python exec_csdi_norm.py --model_name 'TS' --target_dim 2 --eval_length 33 --nsample 1 --nepochs 100 --batch_size 256 --lr 0.00001 --scaling_flag True --load False --modelfolder 100 --rob_flag True --q 0.5 --active_flag True
 
-python exec_csdi.py --model_name 'Toy' --target_dim 3 --eval_length 33 --nsample 1 --nepochs 100 --batch_size 256 --lr 0.0005 --scaling_flag True --load False --modelfolder 1 --rob_flag True --q 0.5 --active_flag True
+python exec_csdi_norm.py --model_name 'Toy' --target_dim 3 --eval_length 33 --nsample 1 --nepochs 100 --batch_size 256 --lr 0.00001 --scaling_flag True --load False --modelfolder 100 --rob_flag True --q 0.5 --active_flag True
 
-python exec_csdi.py --model_name 'Oscillator' --target_dim 3 --eval_length 33 --nsample 1 --nepochs 200 --batch_size 256 --lr 0.0005 --scaling_flag True --load False --modelfolder 1 --rob_flag True --q 0.5 --active_flag True
+python exec_csdi_norm.py --model_name 'Oscillator' --target_dim 3 --eval_length 33 --nsample 1 --nepochs 200 --batch_size 256 --lr 0.00001 --scaling_flag True --load False --modelfolder 100 --rob_flag True --q 0.5 --active_flag True
 
-python exec_csdi.py --model_name 'MAPK' --target_dim 1 --eval_length 34 --nsample 1 --nepochs 200 --batch_size 256 --lr 0.0005 --scaling_flag True  --ntrajs 50 --testmissingratio -2 --load False --modelfolder 1 --rob_flag True --q 0.5 --active_flag True
+python exec_csdi_norm.py --model_name 'MAPK' --target_dim 1 --eval_length 34 --nsample 1 --nepochs 200 --batch_size 256 --lr 0.00001 --scaling_flag True  --ntrajs 50 --testmissingratio -2 --load False --modelfolder 100 --rob_flag True --q 0.5 --active_flag True
 
-python exec_csdi.py --model_name 'EColi' --target_dim 3 --eval_length 35 --nsample 1 --nepochs 100 --batch_size 256 --lr 0.0005 --scaling_flag True --testmissingratio -3 --load False --modelfolder 1 --rob_flag True --q 0.5 --active_flag True
+python exec_csdi_norm.py --model_name 'EColi' --target_dim 3 --eval_length 35 --nsample 1 --nepochs 100 --batch_size 256 --lr 0.00001 --scaling_flag True --testmissingratio -3 --load False --modelfolder 100 --rob_flag True --q 0.5 --active_flag True
 
 
+python exec_csdi_norm.py --model_name 'eSIRS' --target_dim 2 --eval_length 33 --nsample 1 --nepochs 100 --batch_size 256 --lr 0.0000001 --scaling_flag True --load False --modelfolder 100 --rob_flag True --q 0.5 --active_flag True 
+
+python exec_csdi_norm.py --model_name 'SIR' --target_dim 3 --eval_length 17 --nsample 1 --nepochs 50 --batch_size 256 --lr 0.0000001 --scaling_flag True --load False --modelfolder 100 --rob_flag True --q 0.5 --active_flag True
+
+python exec_csdi_norm.py --model_name 'TS' --target_dim 2 --eval_length 33 --nsample 1 --nepochs 50 --batch_size 256 --lr 0.0000001 --scaling_flag True --load False --modelfolder 100 --rob_flag True --q 0.5 --active_flag True
+
+python exec_csdi_norm.py --model_name 'Oscillator' --target_dim 3 --eval_length 33 --nsample 1 --nepochs 50 --batch_size 256 --lr 0.0000001 --scaling_flag True --load False --modelfolder 100 --rob_flag True --q 0.5 --active_flag True
 
 ## WGAN TRAIN
 
-python exec_wgan.py --model_name 'eSIRS' --x_dim 2 --traj_len 32 --n_epochs 200 --batch_size 256 --lr 0.0001 --training_flag False --loading_id 1
+python exec_wgan.py --model_name 'eSIRS' --x_dim 2 --traj_len 32 --n_epochs 200 --batch_size 256 --gen_lr 0.0001 --crit_lr 0.0001  --rob_flag True --Q 50 --training_flag False --loading_id 10
 
-python exec_wgan.py --model_name 'SIR' --x_dim 3 --traj_len 16  --n_epochs 100 --batch_size 256 --lr 0.0001 --training_flag False --loading_id 1
+python exec_wgan.py --model_name 'SIR' --x_dim 3 --traj_len 16  --n_epochs 200 --batch_size 256 --gen_lr 0.0001 --crit_lr 0.0001   --rob_flag True --Q 50 --training_flag False --loading_id 200
 
-python exec_wgan.py --model_name 'TS' --x_dim 2 --traj_len 32 --n_epochs 200 --batch_size 256 --lr 0.0001 --training_flag False --loading_id 1
+python exec_wgan.py --model_name 'TS' --x_dim 2 --traj_len 32 --n_epochs 200 --batch_size 256 --gen_lr 0.0001 --crit_lr 0.0001 --loading_id 10  --rob_flag True --Q 50 --training_flag False 
 
-python exec_wgan.py --model_name 'Toy' --x_dim 3 --traj_len 32 --n_epochs 200 --batch_size 256 --lr 0.0001 --training_flag False --loading_id 1
+python exec_wgan.py --model_name 'Toy' --x_dim 3 --traj_len 32 --n_epochs 200 --batch_size 256 --gen_lr 0.0001 --crit_lr 0.0001 --loading_id 10  --rob_flag True --Q 50 --training_flag False 
 
-python exec_wgan.py --model_name 'Oscillator' --x_dim 3 --traj_len 32 --n_epochs 200 --batch_size 256 --lr 0.0001 --training_flag False --loading_id 1
+python exec_wgan.py --model_name 'Oscillator' --x_dim 3 --traj_len 32 --n_epochs 200 --batch_size 256 --gen_lr 0.0001 --crit_lr 0.0001 --loading_id 10 --rob_flag True --Q 50 --training_flag False 
 
 
-python exec_param_wgan.py --model_name 'MAPK' --traj_len 32 --n_epochs 200 --batch_size 256 --lr 0.0001 --x_dim 1 --y_dim 1 --training_flag False --loading_id 1
+python exec_param_wgan.py --model_name 'MAPK' --traj_len 32 --n_epochs 200 --batch_size 256 --gen_lr 0.0001 --crit_lr 0.0001 --x_dim 1 --y_dim 1  --rob_flag True --Q 50 --loading_id 10 --training_flag False 
 
-python exec_param_wgan.py --model_name 'EColi' --traj_len 32 --n_epochs 200 --batch_size 256 --lr 0.0001 --x_dim 3 --y_dim 2 --training_flag False --loading_id 1
+python exec_param_wgan.py --model_name 'EColi' --traj_len 32 --n_epochs 400 --batch_size 256 --gen_lr 0.0001 --crit_lr 0.0001 --x_dim 3 --y_dim 2  --rob_flag True --Q 50 --training_flag False --loading_id 400
+
+
+python exec_param_wgan.py --model_name 'MAPK' --traj_len 32 --n_epochs 200 --batch_size 256 --gen_lr 0.0001 --crit_lr 0.0001 --x_dim 1 --y_dim 1  --rob_flag True --Q 50 
 
 # WGAN ACTIVE
 
-python exec_active_wgan.py --model_name 'eSIRS' --x_dim 2 --traj_len 32 --n_epochs 200 --batch_size 256 --lr 0.0001 --loading_id 1 --rob_flag True --q 0.5
+python exec_active_wgan.py --model_name 'eSIRS' --x_dim 2 --traj_len 32 --n_epochs 200 --batch_size 256 --lr 0.0001 --loading_id 10 --rob_flag True --q 0.5
 
 python exec_active_wgan.py --model_name 'SIR' --x_dim 3 --traj_len 16  --n_epochs 100 --batch_size 256 --lr 0.0001 --loading_id 1 --rob_flag True --q 0.5
 
@@ -60,18 +77,20 @@ python exec_active_wgan.py --model_name 'TS' --x_dim 2 --traj_len 32 --n_epochs 
 
 python exec_active_wgan.py --model_name 'Toy' --x_dim 3 --traj_len 32 --n_epochs 200 --batch_size 256 --lr 0.0001 --loading_id 1 --rob_flag True --q 0.5
 
-python exec_active_wgan.py --model_name 'Oscillator' --x_dim 3 --traj_len 32 --n_epochs 200 --batch_size 256 --lr 0.0001 --training_flag False --loading_id 1 --rob_flag True --q 0.5
+python exec_active_wgan.py --model_name 'Oscillator' --x_dim 3 --traj_len 32 --n_epochs 200 --batch_size 256 --lr 0.0001 --training_flag False --loading_id 10 --rob_flag True --q 0.5
 
 
 python exec_active_param_wgan.py --model_name 'MAPK' --traj_len 32 --n_epochs 200 --batch_size 256 --lr 0.0001 --x_dim 1 --y_dim 1 --ntrajs 50 --training_flag False --loading_id 1 --rob_flag True --q 0.5
 
 python exec_active_param_wgan.py --model_name 'EColi' --traj_len 32 --n_epochs 200 --batch_size 256 --lr 0.0001 --x_dim 3 --y_dim 2 --training_flag False --loading_id 1 --rob_flag True --q 0.5
+python exec_active_param_wgan.py --model_name 'EColi' --traj_len 32 --n_epochs 400 --batch_size 256 --lr 0.0001 --x_dim 3 --y_dim 2 --training_flag False --loading_id 3 --rob_flag True --q 0.5
+
 
 
 
 ## WGAN RETRAIN
 
-python exec_wgan.py --model_name 'eSIRS' --x_dim 2 --traj_len 32 --n_epochs 200 --batch_size 256 --lr 0.0001 --active_flag True --loading_id 1 --rob_flag True --Q 50
+python exec_wgan.py --model_name 'eSIRS' --x_dim 2 --traj_len 32 --n_epochs 50 --batch_size 256 --gen_lr 0.000001 --crit_lr 0.000001 --active_flag True --loading_id 10 --rob_flag True --Q 50
 
 python exec_wgan.py --model_name 'SIR' --x_dim 3 --traj_len 16  --n_epochs 100 --batch_size 256 --lr 0.0001 --active_flag True --loading_id 1 --rob_flag True --Q 50
 
@@ -79,9 +98,9 @@ python exec_wgan.py --model_name 'TS' --x_dim 2 --traj_len 32 --n_epochs 200 --b
 
 python exec_wgan.py --model_name 'Toy' --x_dim 3 --traj_len 32 --n_epochs 200 --batch_size 256 --lr 0.0001 --active_flag True --loading_id 1 --rob_flag True --Q 50
 
-python exec_wgan.py --model_name 'Oscillator' --x_dim 3 --traj_len 32 --n_epochs 200 --batch_size 256 --lr 0.0001 --active_flag True --loading_id 1 --rob_flag True --Q 50
+python exec_wgan.py --model_name 'Oscillator' --x_dim 3 --traj_len 32 --n_epochs 100 --batch_size 256 --gen_lr 0.0000001 --crit_lr 0.0000001 --active_flag True --loading_id 10 --rob_flag True --Q 50
 
 
 python exec_param_wgan.py --model_name 'MAPK' --traj_len 32 --n_epochs 200 --batch_size 256 --lr 0.0001 --x_dim 1 --y_dim 1 --active_flag True --loading_id 1 --rob_flag True --Q 50
 
-python exec_param_wgan.py --model_name 'EColi' --traj_len 32 --n_epochs 200 --batch_size 256 --lr 0.0001 --x_dim 3 --y_dim 2 --active_flag True --loading_id 1 --rob_flag True --Q 50
+python exec_param_wgan.py --model_name 'EColi' --traj_len 32 --n_epochs 400 --batch_size 256 --lr 0.00001 --x_dim 3 --y_dim 2 --active_flag True --loading_id 3 --rob_flag True --Q 50
