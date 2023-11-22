@@ -1,10 +1,11 @@
 import os
 import sys
 import math
+import time
 import pickle
 import argparse
 import numpy as np
-
+from tqdm import tqdm
 sys.path.append(".")
 current_dir = os.path.dirname(os.path.realpath(__file__))
 parent_dir = os.path.dirname(current_dir)
@@ -16,6 +17,7 @@ import torch.nn.functional as F
 import torch.autograd as autograd
 from torch.autograd import Variable
 from torch.utils.data import DataLoader
+import torch_two_sample 
 
 from scipy.stats import wasserstein_distance
 import matplotlib.pyplot as plt
@@ -31,7 +33,8 @@ from model_details import *
 parser = argparse.ArgumentParser()
 parser.add_argument("--n_epochs", type=int, default=1, help="number of epochs of training")
 parser.add_argument("--batch_size", type=int, default=256, help="size of the batches")
-parser.add_argument("--lr", type=float, default=0.0001, help="adam: learning rate")
+parser.add_argument("--gen_lr", type=float, default=0.0001, help="adam: learning rate")
+parser.add_argument("--crit_lr", type=float, default=0.0001, help="adam: learning rate")
 parser.add_argument("--b1", type=float, default=0.5, help="adam: decay of first order momentum of gradient")
 parser.add_argument("--b2", type=float, default=0.9, help="adam: decay of first order momentum of gradient")
 parser.add_argument("--n_cpu", type=int, default=8, help="number of cpu threads to use during batch generation")
@@ -85,19 +88,23 @@ ds.load_train_data()
 if opt.training_flag and not opt.active_flag:
     ID = str(np.random.randint(0,500))
     print("ID = ", ID)
+    plots_path = "save/"+model_name+"/ID_"+ID
+    parent_path = plots_path
 elif opt.active_flag:
-    ID = 'Retrain_'+opt.loading_id+f'_{opt.Q}perc'
-    print("ID = ", ID)
+    parent_path = "save/"+model_name+f'/ID_{opt.loading_id}'
+    plots_path = parent_path+'/FineTune_'+opt.loading_id+f'_{opt.Q}perc'
 else:
     ID = opt.loading_id
+    plots_path = "save/"+model_name+"/ID_"+ID
+    parent_path = plots_path
 
-plots_path = "save/"+model_name+"/ID_"+ID
 os.makedirs(plots_path, exist_ok=True)
 f = open(plots_path+"/log.txt", "w")
 f.write(str(opt))
 f.close()
 
-MODEL_PATH = plots_path+"/generator_{}epochs.pt".format(opt.n_epochs)
+GEN_PATH = plots_path+"/generator.pt"
+CRIT_PATH = plots_path+"/critic.pt"
 
 # Loss weight for gradient penalty
 lambda_gp = 10
@@ -138,16 +145,24 @@ def generate_random_conditions():
 
 if opt.training_flag:
 
-    generator = Generator(opt.x_dim,opt.y_dim, opt.traj_len, opt.latent_dim)
-    critic = Critic(opt.x_dim+opt.y_dim, opt.traj_len)
+    st = time.time()
+
+    if opt.active_flag:
+        critic = torch.load(parent_path+"/critic.pt")
+        generator = torch.load(parent_path+"/generator.pt")
+        critic.train()
+        generator.train()
+    else:
+        generator = Generator(opt.x_dim, opt.y_dim, opt.traj_len, opt.latent_dim)
+        critic = Critic(opt.x_dim+opt.y_dim, opt.traj_len)
 
     if cuda:
         generator.cuda()
         critic.cuda()
     
     # Optimizers
-    optimizer_G = torch.optim.Adam(generator.parameters(), lr=opt.lr, betas=(opt.b1, opt.b2))
-    optimizer_C = torch.optim.Adam(critic.parameters(), lr=opt.lr, betas=(opt.b1, opt.b2))
+    optimizer_G = torch.optim.Adam(generator.parameters(), lr=opt.gen_lr, betas=(opt.b1, opt.b2))
+    optimizer_C = torch.optim.Adam(critic.parameters(), lr=opt.crit_lr, betas=(opt.b1, opt.b2))
 
     
     batches_done = 0
@@ -233,7 +248,13 @@ if opt.training_flag:
             torch.save(generator, plots_path+"/generator_{}epochs.pt".format(epoch))    
         C_losses.append(np.mean(tmp_C_loss))
         G_losses.append(np.mean(tmp_G_loss))
+    training_time = time.time()-st
+    print("ParamWGAN Training time: ", training_time)
     
+    f = open(plots_path+"/log.txt", "a")
+    f.write("ParamWGAN Training time: ")
+    f.write(str(training_time))
+    f.close()
     fig, axs = plt.subplots(2,1,figsize = (12,6))
     axs[0].plot(np.arange(opt.n_epochs), G_losses)
     axs[1].plot(np.arange(opt.n_epochs), C_losses)
@@ -264,11 +285,12 @@ if opt.training_flag:
     plt.close()
 
     # save the ultimate trained generator    
-    torch.save(generator, MODEL_PATH)
+    torch.save(generator, GEN_PATH)
+    torch.save(critic, CRIT_PATH)
 else:
     # load the ultimate trained generator
-    print("MODEL_PATH: ", MODEL_PATH)
-    generator = torch.load(MODEL_PATH)
+    print("MODEL_PATH: ", GEN_PATH)
+    generator = torch.load(GEN_PATH)
     generator.eval()
     if cuda:
         generator.cuda()
@@ -282,6 +304,7 @@ TEST_PLOT_FLAG = True
 
 HIST_FLAG = True
 WASS_FLAG = True
+STAT_TEST = True
 TEST_STL_FLAG = True
 VALID_STL_FLAG = True
 
@@ -291,10 +314,12 @@ if TEST_TRAJ_FLAG:
     n_gen_trajs = ds.n_test_traj_per_point
     gen_trajectories = np.empty(shape=(ds.n_points_test, n_gen_trajs, opt.x_dim, opt.traj_len))
     for iii in range(ds.n_points_test):
-        print("Test point nb ", iii+1, " / ", ds.n_points_test)
+        #print("Test point nb ", iii+1, " / ", ds.n_points_test)
         for jjj in range(n_gen_trajs):
             z_noise = np.random.normal(0, 1, (1, opt.latent_dim))
             #print(ds.Y_test_transp[iii,jjj])
+            #print(ds.Y_test_transp[iii,jjj,opt.y_dim:].shape)
+            #print(ds.Y_test_transp[iii,jjj,:opt.y_dim].shape)
             temp_out = generator(Variable(Tensor(z_noise)), Variable(Tensor([ds.Y_test_transp[iii,jjj,opt.y_dim:]])),Variable(Tensor([ds.Y_test_transp[iii,jjj,:opt.y_dim]])))
             gen_trajectories[iii,jjj] = temp_out.detach().cpu().numpy()[0]
 
@@ -316,7 +341,7 @@ if VALID_TRAJ_FLAG:
     n_gen_trajs = ds.n_valid_traj_per_point
     gen_valid_trajectories = np.empty(shape=(ds.n_points_valid, n_gen_trajs, opt.x_dim, opt.traj_len))
     for iii in range(ds.n_points_valid):
-        print("Valid int nb ", iii+1, " / ", ds.n_points_valid)
+        #print("Valid int nb ", iii+1, " / ", ds.n_points_valid)
         for jjj in range(n_gen_trajs):
             z_noise = np.random.normal(0, 1, (1, opt.latent_dim))
             #print(ds.Y_test_transp[iii,jjj])
@@ -340,12 +365,14 @@ leg = ['real', 'gen']
 
 #PLOT TRAJECTORIES
 if TEST_PLOT_FLAG:
+    plt.rcParams.update({'font.size': 25})
+
     n_trajs_to_plot = 10
     print("Plotting test trajectories...")      
     tspan = range(opt.traj_len)
     for kkk in range(ds.n_points_test):
-        print("Test point nb ", kkk+1, " / ", ds.n_points_test)
-        fig, axs = plt.subplots(opt.x_dim,figsize=(24.0, 12.0))
+        #print("Test point nb ", kkk+1, " / ", ds.n_points_test)
+        fig, axs = plt.subplots(opt.x_dim,figsize=(16.0, opt.x_dim*4))
         G = np.array([np.round(ds.XHMIN+(gen_trajectories[kkk, it].T+1)*(ds.XHMAX-ds.XHMIN)/2).T for it in range(ds.n_test_traj_per_point)])
         R = np.array([np.round(ds.XHMIN+(ds.X_test_transp[kkk, it].T+1)*(ds.XHMAX-ds.XHMIN)/2).T for it in range(ds.n_test_traj_per_point)])
         #G = (gen_trajectories[kkk].transpose((0,2,1))*ds.test_std+ds.test_mean).transpose((0,2,1))
@@ -382,19 +409,20 @@ if TEST_PLOT_FLAG:
                         axs[d].plot(tspan, R[traj_idx, d], color=colors[0])
                         axs[d].plot(tspan, G[traj_idx,d], color=colors[1])
                     axs[d].set_ylabel(opt.species_labels[d])
-        
+        fig.suptitle('cwgan-gp',fontsize=40)
         plt.tight_layout()
-        fig.savefig(plots_path+"/"+opt.model_name+"_stoch_rescaled_trajectories_point_"+str(kkk)+".png")
+        fig.savefig(plots_path+"/WGAN_"+opt.model_name+"_stoch_rescaled_trajectories_point_"+str(kkk)+".png")
         plt.close()
 
 #PLOT HISTOGRAMS
 if HIST_FLAG:
+    plt.rcParams.update({'font.size': 25})
 
     bins = 50
     time_instant = -1
     print("Plotting histograms...")
     for kkk in range(ds.n_points_test):
-        fig, ax = plt.subplots(opt.x_dim,1, figsize = (12,opt.x_dim*3))
+        fig, ax = plt.subplots(opt.x_dim,1, figsize = (12,opt.x_dim*4))
         G = np.array([np.round(ds.XHMIN+(gen_trajectories[kkk, it].T+1)*(ds.XHMAX-ds.XHMIN)/2).T for it in range(ds.n_test_traj_per_point)])
         R = np.array([np.round(ds.XHMIN+(ds.X_test_transp[kkk, it].T+1)*(ds.XHMAX-ds.XHMIN)/2).T for it in range(ds.n_test_traj_per_point)])
             
@@ -414,20 +442,23 @@ if HIST_FLAG:
                 ax[d].legend()
                 ax[d].set_ylabel(opt.species_labels[d])
 
-        figname = plots_path+"/"+opt.model_name+"_rescaled_hist_comparison_{}th_timestep_{}.png".format(time_instant, kkk)
-        
+        figname = plots_path+"/WGAN_"+opt.model_name+"_rescaled_hist_comparison_{}th_timestep_{}.png".format(time_instant, kkk)
+        fig.suptitle('cwgan-gp',fontsize=40)
+        plt.tight_layout()
         fig.savefig(figname)
 
         plt.close()
 
 
+
 #COMPUTE WASSERSTEIN DISTANCES
 
 if WASS_FLAG:
-    dist = np.zeros(shape=(ds.n_points_test, opt.x_dim, opt.traj_len))
+    plt.rcParams.update({'font.size': 22})
+    dist = np.zeros((ds.n_points_test, opt.x_dim, opt.traj_len))
     print("Computing and Plotting Wasserstein distances...") 
-    for kkk in range(ds.n_points_test):
-        print("\tinit_state n = ", kkk)
+    for kkk in tqdm(range(ds.n_points_test)):
+        #print("\tinit_state n = ", kkk)
         for m in range(opt.x_dim):
             for t in range(opt.traj_len):    
                 A = ds.X_test_transp[kkk,:,m,t]
@@ -442,11 +473,12 @@ if WASS_FLAG:
     for spec in range(opt.x_dim):
         plt.plot(np.arange(opt.traj_len), avg_dist[spec], markers[spec], label=opt.species_labels[spec])
     plt.legend()
+    plt.title('cwgan-gp')
     plt.xlabel("time")
     plt.ylabel("wass dist")
     plt.tight_layout()
 
-    figname = plots_path+"/"+opt.model_name+"_Traj_avg_wass_distance_{}epochs_{}steps.png".format(opt.n_epochs, opt.traj_len)
+    figname = plots_path+"/WGAN_"+opt.model_name+"_avg_wass_distance.png"
     fig.savefig(figname)
     distances_dict = {"gen_hist":B, "ssa_hist":A, "wass_dist":dist}
     file = open(plots_path+'/wgan_gp_distances.pickle', 'wb')
@@ -455,14 +487,50 @@ if WASS_FLAG:
     # close the file
     file.close()
 
+if WASS_FLAG:
+    dist = np.zeros(shape=(ds.n_points_test, opt.x_dim, opt.traj_len))
+    print("Computing and Plotting Rescaled Wasserstein distances...") 
+    for kkk in tqdm(range(ds.n_points_test)):
+        #print("\tinit_state n = ", kkk)
+        for t in range(opt.traj_len):    
+            
+            Gt = np.round(ds.XHMIN+(gen_trajectories[kkk, :, :, t]+1)*(ds.XHMAX-ds.XHMIN)/2)
+            Rt = np.round(ds.XHMIN+(ds.X_test_transp[kkk, :, :, t]+1)*(ds.XHMAX-ds.XHMIN)/2)
+
+            for m in range(opt.x_dim):
+                A = Rt[m]
+                B = Gt[m]
+                
+                dist[kkk, m, t] = wasserstein_distance(A, B)
+                
+
+    avg_dist = np.mean(dist, axis=0)
+    markers = ['--','-.',':']
+    fig = plt.figure()
+    for spec in range(opt.x_dim):
+        plt.plot(np.arange(opt.traj_len), avg_dist[spec], markers[spec], label=opt.species_labels[spec])
+    plt.legend()
+    plt.title('cwgan-gp')
+    plt.xlabel("time")
+    plt.ylabel("wass dist")
+    plt.tight_layout()
+
+    figname = plots_path+"/WGAN_"+opt.model_name+"_rescaled_avg_wass_distance.png"
+    fig.savefig(figname)
+    distances_dict = {"gen_hist":B, "ssa_hist":A, "wass_dist":dist}
+    file = open(plots_path+f'/WGAN_{opt.model_name}_rescaled_avg_wass_distances.pickle', 'wb')
+    # dump information to that file
+    pickle.dump(distances_dict, file)
+    # close the file
+    file.close()
 
 # COMPUTE THE EXPECTED SATISFACTION OF AN STL PROPERTY
 if TEST_STL_FLAG:
     print('Computing STL satisfaction...')
     ssa_sat = np.empty(ds.n_points_test)
     gen_sat = np.empty(ds.n_points_test)
-    for i in range(ds.n_points_test):
-        print("\tinit_state n = ", i)
+    for i in tqdm(range(ds.n_points_test)):
+        #print("\tinit_state n = ", i)
         rescaled_ssa_trajs_i = np.transpose(np.round(ds.XHMIN+(np.transpose(ds.X_test_transp[i],(0,2,1))+1)*(ds.XHMAX-ds.XHMIN)/2),(0,2,1)) 
         rescaled_gen_trajs_i = np.transpose(np.round(ds.XHMIN+(np.transpose(gen_trajectories[i],(0,2,1))+1)*(ds.XHMAX-ds.XHMIN)/2),(0,2,1))
         #rescaled_gen_trajs_i = (gen_trajectories[i].transpose((0,2,1))*ds.test_std+ds.test_mean).transpose((0,2,1))
@@ -475,8 +543,10 @@ if TEST_STL_FLAG:
             ssa_sat_i = eval_mapk_property(ssa_trajs_i,opt.rob_flag).float()
             gen_sat_i = eval_mapk_property(gen_trajs_i,opt.rob_flag).float()
         elif model_name == 'EColi':
-            ssa_sat_i = eval_ecoli_property(ssa_trajs_i,opt.rob_flag).float()
-            gen_sat_i = eval_ecoli_property(gen_trajs_i,opt.rob_flag).float()
+            sum_value = torch.sum(ssa_trajs_i,dim=1)
+            
+            ssa_sat_i = eval_ecoli_property(ssa_trajs_i,sum_value,opt.rob_flag).float()
+            gen_sat_i = eval_ecoli_property(gen_trajs_i,sum_value,opt.rob_flag).float()
         else:
             ssa_sat_i, gen_sat_i = 0, 0
             print('ERROR: No properties for the '+ opt.model_name +' model!')
@@ -492,24 +562,34 @@ if TEST_STL_FLAG:
     plt.plot(np.arange(ds.n_points_test), ssa_sat, 'o-', color=colors[0], label=leg[0])
     plt.plot(np.arange(ds.n_points_test), gen_sat, 'o-', color=colors[1], label=leg[1])
     plt.legend()
+    plt.title('cwgan-gp')
+
     plt.xlabel("test points")
-    plt.ylabel("exp. satisfaction")
+    if opt.rob_flag:
+        plt.ylabel("exp. robustness")
+    else:
+        plt.ylabel("exp. satisfaction")
+
     plt.tight_layout()
     if opt.rob_flag:
-        figname_stl = plots_path+"/test_stl_quantitative_satisfaction.png"
+        figname_stl = plots_path+"/wgan_test_stl_quantitative_satisfaction.png"
     else:
-        figname_stl = plots_path+"/test_stl_boolean_satisfaction.png"
+        figname_stl = plots_path+"/wgan_test_stl_boolean_satisfaction.png"
     fig.savefig(figname_stl)
 
-
+    test_dist_dict = {'init': ds.Y_test_transp[:,0,:,0], 'sat_diff':sat_test_diff}
+    file = open(plots_path+f'/quantitative_satisf_distances_test_set_active={opt.active_flag}.pickle', 'wb')
+    
+    pickle.dump(test_dist_dict, file)
+    file.close()
 
 
 if VALID_STL_FLAG:
     print('Computing STL satisfaction over validation set...')
     ssa_valid_sat = np.empty(ds.n_points_valid)
     gen_valid_sat = np.empty(ds.n_points_valid)
-    for i in range(ds.n_points_valid):
-        print("\tinit_state n = ", i)
+    for i in tqdm(range(ds.n_points_valid)):
+        #print("\tinit_state n = ", i)
         rescaled_ssa_valid_trajs_i = np.transpose(np.round(ds.XHMIN+(np.transpose(ds.X_valid_transp[i],(0,2,1))+1)*(ds.XHMAX-ds.XHMIN)/2),(0,2,1)) 
         rescaled_gen_valid_trajs_i = np.transpose(np.round(ds.XHMIN+(np.transpose(gen_valid_trajectories[i],(0,2,1))+1)*(ds.XHMAX-ds.XHMIN)/2),(0,2,1))
         
@@ -523,8 +603,10 @@ if VALID_STL_FLAG:
             ssa_sat_i = eval_mapk_property(ssa_trajs_i,opt.rob_flag).float()
             gen_sat_i = eval_mapk_property(gen_trajs_i,opt.rob_flag).float()
         elif model_name == 'EColi':
-            ssa_sat_i = eval_ecoli_property(ssa_trajs_i,opt.rob_flag).float()
-            gen_sat_i = eval_ecoli_property(gen_trajs_i,opt.rob_flag).float()
+            sum_value = torch.sum(ssa_trajs_i,dim=1)
+
+            ssa_sat_i = eval_ecoli_property(ssa_trajs_i,sum_value,opt.rob_flag).float()
+            gen_sat_i = eval_ecoli_property(gen_trajs_i,sum_value,opt.rob_flag).float()
         else:
             ssa_sat_i, gen_sat_i = 0, 0
             print('ERROR: No properties for the '+ opt.model_name +' model!')
@@ -544,3 +626,68 @@ if VALID_STL_FLAG:
     pickle.dump(valid_dist_dict, file)
     # close the file
     file.close()
+
+
+#COMPUTE p-VALUES
+
+if STAT_TEST:
+    plt.rcParams.update({'font.size': 22})
+
+    samples_grid = [5,10, 25, 50, 100, 200,300]
+    G = len(samples_grid)
+    
+    filename = plots_path+f'/WGAN_{opt.model_name}_pvalues.pickle'
+    if True:
+    
+        print("Statistical test...") 
+
+        pvals_mean = np.empty((opt.x_dim,G))
+        pvals_std = np.empty((opt.x_dim,G))
+        for jj in range(G):
+            
+            pvals = torch.zeros((ds.n_points_test, opt.x_dim, opt.traj_len))
+            for kkk in tqdm(range(ds.n_points_test)):
+                #print("\tinit_state n = ", kkk)
+                for m in range(opt.x_dim):
+                    for t in range(opt.traj_len):    
+                        A = torch.Tensor(ds.X_test_transp[kkk,:samples_grid[jj],m,t]).unsqueeze(1)
+                        B = torch.Tensor(gen_trajectories[kkk,:samples_grid[jj],m,t]).unsqueeze(1)
+                        st = torch_two_sample.statistics_diff.EnergyStatistic(samples_grid[jj], samples_grid[jj])
+                        stat, dist = st(A,B, ret_matrix = True)
+                        pvals[kkk, m, t] = st.pval(dist)
+                            
+            pvals_mean[:,jj] = np.mean(np.mean(pvals.cpu().numpy(), axis=0),axis=1)
+            pvals_std[:,jj] = np.std(np.std(pvals.cpu().numpy(), axis=0),axis=1)
+        
+        file = open(filename, 'wb')
+    
+        pvalues_dict = {"samples_grid":samples_grid, "pvals_mean":pvals_mean, "pvals_std":pvals_std}
+        # dump information to that file
+        pickle.dump(pvalues_dict, file)
+        # close the file
+        file.close()
+
+    else:
+        with open(filename, 'rb') as f:
+            pvalues_dict = pickle.load(f)
+        pvals_mean, pvals_std = pvalues_dict["pvals_mean"], pvalues_dict["pvals_std"]
+
+    colors = ['b','r','g']
+    fig = plt.figure()
+    for spec in range(opt.x_dim):
+        plt.plot(np.array(samples_grid), pvals_mean[spec], color =colors[spec],label=opt.species_labels[spec])
+        plt.fill_between(np.array(samples_grid), pvals_mean[spec]-1.96*pvals_std[spec],
+                                    pvals_mean[spec]+1.96*pvals_std[spec], color =colors[spec],alpha =0.1)
+    plt.plot(np.array(samples_grid), np.ones(G)*0.05,'k--') 
+    plt.legend()
+    #plt.xticks(samples_grid)
+    plt.grid()
+
+    plt.title(f'cwgan-gp: {opt.model_name}')
+    plt.xlabel("nb of samples")
+    plt.ylabel("p-values")
+    plt.tight_layout()
+    figname = plots_path+f"/WGAN_{opt.model_name}_statistical_test.png"
+    fig.savefig(figname)
+    plt.close()
+

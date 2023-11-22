@@ -51,6 +51,7 @@ parser.add_argument("--po_flag", type=eval, default=False, help="id of the model
 parser.add_argument("--q", type=float, default=0.9)
 parser.add_argument("--rob_flag", type=eval, default=False)
 parser.add_argument("--active_flag", type=eval, default=False)
+parser.add_argument("--finetune_flag", type=eval, default=True)
 
 opt = parser.parse_args()
 print(opt)
@@ -64,7 +65,7 @@ cuda = True if torch.cuda.is_available() else False
 
 trainset_fn = "../data/"+opt.model_name+"/"+opt.model_name+f"_train_set_H={opt.traj_len}_2000x10.pickle"
 testset_fn = "../data/"+opt.model_name+"/"+opt.model_name+f"_test_set_H={opt.traj_len}_25x1000.pickle"
-validset_fn = "../data/"+opt.model_name+"/"+opt.model_name+f"_valid_set_H={opt.traj_len}_200x50.pickle" # to train the err predict
+validset_fn = "../data/"+opt.model_name+"/"+opt.model_name+f"_valid_set_H={opt.traj_len}_500x50.pickle" # to train the err predict
 activeset_fn = "../data/"+opt.model_name+"/"+opt.model_name+f"_active_set_H={opt.traj_len}_2000x10.pickle" # pool to actively query uncertain points
 
 ds = Dataset(trainset_fn, testset_fn, opt.x_dim, opt.y_dim, opt.traj_len)
@@ -75,7 +76,7 @@ ds.load_test_data(opt.n_test_trajs)
 ds.load_active_data()
 
 plots_path = "save/"+opt.model_name+"/ID_"+opt.loading_id
-model_path = plots_path+"/generator_{}epochs.pt".format(opt.n_epochs)
+model_path = plots_path+"/generator.pt"
 
 # load pretrained surrogate model
 print("Model_path: ", model_path)
@@ -120,13 +121,6 @@ if opt.bayes == 'sklearn':
 	print('mean_prediction = ', mean_prediction)
 	print('std_prediction = ', std_prediction)
 
-#elif bayes == 'svigp':
-
-elif opt.bayes == 'svibnn':
-
-	from SVI_BNNs.bnn import BNN_smMC
-	bnn_smmc = BNN_smMC(model_name = model_name, input_size=args.x_dim, n_hidden=args.n_hidden, architecture_name=args.architecture)
-
 
 else:
 	print('Unknown Bayesian inference technique.')
@@ -146,8 +140,12 @@ active_x = ds.X_active_transp[(UB>=err_threshold)]
 x_act = active_x.reshape(active_x.shape[0]*active_x.shape[1], active_x.shape[2], active_x.shape[3])
 y_act = active_y.reshape(active_y.shape[0]*active_y.shape[1], active_y.shape[2], active_y.shape[3])
 
-Xactive_scaled = np.concatenate((ds.X_train_transp, x_act),axis=0) 
-Yactive_scaled = np.concatenate((ds.Y_train_transp, y_act),axis=0)   
+if opt.finetune_flag:
+	Xactive_scaled = x_act
+	Yactive_scaled = y_act 
+else:
+	Xactive_scaled = np.concatenate((ds.X_train_transp, x_act),axis=0) 
+	Yactive_scaled = np.concatenate((ds.Y_train_transp, y_act),axis=0)
 
 Xactive_scaled = Xactive_scaled.transpose((0,2,1))
 Yactive_scaled = Yactive_scaled.transpose((0,2,1))

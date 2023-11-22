@@ -17,14 +17,26 @@ class Critic(nn.Module):
             block.append(nn.LayerNorm([out_filters, L]))
 
             return block
+        if traj_len == 64:
+            self.model = nn.Sequential(
+                *critic_block(x_dim, 64, traj_len//2),
+                *critic_block(64, 64, traj_len//4),
+                *critic_block(64, 64, traj_len//8)
 
-        self.model = nn.Sequential(
-            *critic_block(x_dim, 64, traj_len//2),
-            *critic_block(64, 64, traj_len//4)
-        )
+            )
+        else:
+            self.model = nn.Sequential(
+                *critic_block(x_dim, 64, traj_len//2),
+                *critic_block(64, 64, traj_len//4),
+                
+            )
 
         # The height and width of downsampled image
-        ds_size = (traj_len +1) // (2**2)
+        if traj_len == 64:
+            ds_size = (traj_len +1) // (2**3)
+        else:
+            ds_size = (traj_len +1) // (2**2)
+
         self.adv_layer = nn.Sequential(nn.Linear(64 * ds_size, 1))
         
     def forward(self, trajs, conditions):
@@ -49,21 +61,37 @@ class ParamCritic(nn.Module):
 
             return block
 
-        self.model = nn.Sequential(
-            *critic_block(x_dim, 64, traj_len//2),
-            *critic_block(64, 64, traj_len//4)
-        )
+        if False:
+            self.model = nn.Sequential(
+                *critic_block(x_dim, 64, traj_len//2),
+                *critic_block(64, 64, traj_len//4)
+            )
+        else:
+            print("LARGE ARCHITECTURE")
+            
+            self.model = nn.Sequential(
+                *critic_block(x_dim, 256, traj_len//2),
+                *critic_block(256, 256, traj_len//4),
+                *critic_block(256, 256, traj_len//8),
+                *critic_block(256, 256, traj_len//16),
+                #*critic_block(256, 256, traj_len//32)
+
+            )
 
         # The height and width of downsampled image
-        ds_size = (traj_len +1) // (2**2)
-        self.adv_layer = nn.Sequential(nn.Linear(64 * ds_size, 1))
-        
+        if False:
+            ds_size = (traj_len +1) // (2**2)
+            self.adv_layer = nn.Sequential(nn.Linear(64 * ds_size, 1))
+        else:
+            ds_size = (traj_len +1) // (2**4)
+            self.adv_layer = nn.Sequential(nn.Linear(256 * ds_size, 1))
+
+
 
     def forward(self, traj, init_state, param):
 
         full_traj = torch.cat((init_state, traj), 2)
         param_rep = param.repeat(1, 1, self.traj_len+1)
-
         d_in = torch.cat((full_traj, param_rep), 1)
 
         out = self.model(d_in)

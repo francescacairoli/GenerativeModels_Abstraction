@@ -81,7 +81,7 @@ ds.load_test_data(opt.n_test_trajs)
 ds.load_active_data()
 
 plots_path = "save/"+opt.model_name+"/ID_"+opt.loading_id
-model_path = plots_path+"/generator_{}epochs.pt".format(opt.n_epochs)
+model_path = plots_path+"/generator.pt"
 
 # load pretrained surrogate model
 print("Model_path: ", model_path)
